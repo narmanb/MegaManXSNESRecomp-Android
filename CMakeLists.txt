@@ -12,9 +12,16 @@ set(SNESRECOMP_BUILD_VERSION "${PROJECT_VERSION}-alpha" CACHE STRING "Release st
 set(SNESRECOMP_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/snesrecomp" CACHE PATH "snesrecomp checkout")
 set(RECOMP_UI_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/recomp-ui" CACHE PATH "recomp-ui checkout")
 set(SNESRECOMP_ENABLE_MODS ON CACHE BOOL "Shared mod package runtime" FORCE)
-# Match Gundam Endless Duel's internet-capable lobby build. Per-target netplay
-# keeps the unmodified Japanese edition and small unit tests independent.
-set(SNESRECOMP_NET_ICE ON CACHE BOOL "Internet netplay transport" FORCE)
+# Android follows the proven SuperMetroidRecomp path: SDL2 + GLES through
+# SDLActivity. Keep WAN/netplay out of the first mobile milestone so the
+# native runtime can be validated independently.
+if(ANDROID)
+    set(SNESRECOMP_SDL_BACKEND "SDL2" CACHE STRING "SDL backend" FORCE)
+    set(SNESRECOMP_NET_ICE OFF CACHE BOOL "Internet netplay transport" FORCE)
+else()
+    # Match Gundam Endless Duel's internet-capable lobby build on desktop.
+    set(SNESRECOMP_NET_ICE ON CACHE BOOL "Internet netplay transport" FORCE)
+endif()
 include(${SNESRECOMP_ROOT}/runner/runner.cmake)
 include(${RECOMP_UI_ROOT}/recomp_ui.cmake)
 
@@ -32,13 +39,26 @@ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/mmx_default_config.h"
 # One source list for Windows, Linux and macOS, with region-specific generated
 # banks and funcs.h. Missing optional JP output does not block a USA build.
 function(add_mmx_variant TARGET GEN_DIR CFG_DIR)
+    # The Android package exposes one SDLActivity entry point (libmain.so).
+    # Ship the USA build first; the Japanese variant remains a desktop target.
+    if(ANDROID AND "${TARGET}" STREQUAL "RockmanXSNESRecomp")
+        message(STATUS "Rockman X: skipped for the Android package")
+        return()
+    endif()
     if(NOT SNESRECOMP_SETUP_HOST AND NOT EXISTS "${GEN_DIR}/dispatch_v2.c")
         if("${TARGET}" STREQUAL "RockmanXSNESRecomp")
             message(STATUS "Rockman X: generate variants/jp/gen to enable this target")
             return()
         endif()
     endif()
-    add_executable(${TARGET} ${SNESRECOMP_RUNNER_SOURCES}
+    if(ANDROID)
+        # SDLActivity loads libmain.so and resolves SDL_main from it.
+        add_library(${TARGET} SHARED)
+        set_target_properties(${TARGET} PROPERTIES OUTPUT_NAME main)
+    else()
+        add_executable(${TARGET})
+    endif()
+    target_sources(${TARGET} PRIVATE ${SNESRECOMP_RUNNER_SOURCES}
         src/main.c src/mmx_startup.c src/mmx_netplay.c src/mmx_display.c src/mmx_renderer.c src/mmx_render_assets.c src/mmx_wide_policy.c
         src/mmx_00.c src/gen_stubs.c src/mmx_cpu_infra.c src/mmx_rtl.c
         src/mmx_spc_player.c src/mods/mmx_diagnostics_plugin.c
@@ -59,21 +79,39 @@ function(add_mmx_variant TARGET GEN_DIR CFG_DIR)
             $<$<COMPILE_LANGUAGE:C>:-Wno-implicit-function-declaration>)
     endif()
     target_link_libraries(${TARGET} PRIVATE ${SNESRECOMP_RUNNER_LIBRARIES})
-    snesrecomp_target_sdl(${TARGET})
+    if(ANDROID)
+        # android/app/jni/CMakeLists.txt provides the pinned SDL2 target.
+        target_link_libraries(${TARGET} PRIVATE SDL2::SDL2 android log)
+        target_compile_definitions(${TARGET} PRIVATE
+            SNESRECOMP_SDL3=0
+            SDL_MAIN_HANDLED
+            MMX_DESKTOP_ENTRY=SDL_main)
+    else()
+        snesrecomp_target_sdl(${TARGET})
+    endif()
     snesrecomp_target_fiber_compat(${TARGET})
     snesrecomp_target_desktop_host(${TARGET} TIER2)
     snesrecomp_target_generated_code(${TARGET} ${GEN_DIR})
     if(SNESRECOMP_SETUP_HOST)
         target_sources(${TARGET} PRIVATE src/setup_host.c)
     endif()
-    snesrecomp_target_config_seed(${TARGET})
-    snesrecomp_target_shader_presets(${TARGET})
+    if(NOT ANDROID)
+        snesrecomp_target_config_seed(${TARGET})
+        snesrecomp_target_shader_presets(${TARGET})
+    endif()
     if("${TARGET}" STREQUAL "RockmanXSNESRecomp")
         # JP remains authentic 4:3, with no mod provider.
         snesrecomp_target_mod_catalog(${TARGET} NONE)
     else()
-        snesrecomp_target_mod_catalog(${TARGET} "${CMAKE_CURRENT_SOURCE_DIR}/mods/preloaded")
-        snesrecomp_target_rom_cache(${TARGET})
+        if(ANDROID)
+            # APK asset extraction for the desktop mod catalog is a follow-up
+            # milestone. Declaring NONE prevents desktop post-build copies from
+            # pretending the catalog is packaged in the APK.
+            snesrecomp_target_mod_catalog(${TARGET} NONE)
+        else()
+            snesrecomp_target_mod_catalog(${TARGET} "${CMAKE_CURRENT_SOURCE_DIR}/mods/preloaded")
+            snesrecomp_target_rom_cache(${TARGET})
+        endif()
         if(NOT SNESRECOMP_SETUP_HOST)
             # Invalidate generated objects before Ninja plans this build.
             file(GLOB mmx_generated ${GEN_DIR}/*.c)
@@ -110,7 +148,7 @@ function(add_mmx_variant TARGET GEN_DIR CFG_DIR)
     endif()
     recomp_target_launcher_ui(${TARGET} CONSOLE snes
         BOXART ${CMAKE_CURRENT_SOURCE_DIR}/recomp/launcher/boxart.tga)
-    if(NOT "${TARGET}" STREQUAL "RockmanXSNESRecomp")
+    if(NOT ANDROID AND NOT "${TARGET}" STREQUAL "RockmanXSNESRecomp")
         snesrecomp_enable_recomp_net(${TARGET})
     endif()
 endfunction()
@@ -124,6 +162,7 @@ add_mmx_variant(RockmanXSNESRecomp "${CMAKE_CURRENT_SOURCE_DIR}/variants/jp/gen"
     "${CMAKE_CURRENT_SOURCE_DIR}/variants/jp/config"
     MMX_VARIANT_JP=1 SNESRECOMP_LLE_BOUNCE_DEFAULT=0)
 
+if(NOT ANDROID)
 include(CTest)
 if(BUILD_TESTING)
     add_executable(mmx_source_assets_test tests/mmx_source_assets_test.cpp src/mmx_source_assets.cpp
@@ -183,3 +222,4 @@ if(TARGET mmx_state_tests)
     set_property(TARGET mmx_state_tests PROPERTY SOURCES
         tests/mmx_adaptive_state_test.c ${mmx_state_sources})
 endif()
+endif() # NOT ANDROID
