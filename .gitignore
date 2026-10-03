@@ -110,3 +110,10 @@ ghidra/*
 # Player configuration and controller-specific bindings
 /config.local.ini
 /input-bindings/
+
+# Android local/generated build inputs
+/android/.gradle/
+/android/**/build/
+/android/local.properties
+/android/app/jni/SDL/
+/android/app/src/main/java/org/libsdl/
