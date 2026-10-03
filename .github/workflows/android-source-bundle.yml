@@ -1,0 +1,28 @@
+name: Android source bundle
+
+on:
+  push:
+    branches:
+      - android-port
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Create source bundle
+        run: |
+          tar --exclude='.git' --exclude='android/app/jni/SDL' -czf /tmp/mmx-android-source.tar.gz .
+
+      - name: Upload source bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmx-android-source
+          path: /tmp/mmx-android-source.tar.gz
+          if-no-files-found: error
+          retention-days: 1
