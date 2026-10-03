@@ -1,0 +1,30 @@
+name: Android SDL2 headers
+
+on:
+  push:
+    branches:
+      - android-port
+    paths:
+      - '.github/workflows/android-sdl-headers.yml'
+
+jobs:
+  headers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Fetch pinned SDL2
+        run: bash android/fetch_sdl.sh
+
+      - name: Pack SDL2 headers
+        run: tar -C android/app/jni/SDL -czf /tmp/sdl2-headers.tar.gz include
+
+      - name: Upload SDL2 headers
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdl2-2.32.8-headers
+          path: /tmp/sdl2-headers.tar.gz
+          retention-days: 1
