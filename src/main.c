@@ -210,7 +210,14 @@ int MMX_DESKTOP_ENTRY(int argc, char **argv) {
     .default_config_ini = kMmxDefaultConfig,
     .env_prefix = "MMX", .debug_port = 4377,
     .native_widescreen = 0, .state_menu_hotkeys = 1,
+#ifdef __ANDROID__
+    /* The Android host uses SDL_Renderer/GLES; desktop GLSL presets are not
+     * compiled there. Widescreen remains available through the native MMX
+     * compositor and its Mods entry. */
+    .display_aspect_supported = 1, .shader_supported = 0,
+#else
     .display_aspect_supported = 1, .shader_supported = 1,
+#endif
     /* Rewind's ring has always been in the runtime and reachable on F8; this
      * puts its switch, depth and interval on the Settings page and persists
      * them, so a player can size it or turn it off without an env var. */
