@@ -39,3 +39,39 @@ android {
         abortOnError false
     }
 }
+
+
+def runtimeAssetsDir = layout.buildDirectory.dir("generated/runtimeAssets")
+
+tasks.register("prepareRuntimeAssets", Copy) {
+    into(runtimeAssetsDir)
+
+    // recomp-ui skips desktop POST_BUILD asset staging on Android. Package
+    // exactly the runtime files its launcher expects, preserving the same
+    // external-files layout the native host uses after chdir().
+    from("${rootDir}/../recomp-ui/assets/common/fonts") {
+        into "assets/fonts"
+    }
+    from("${rootDir}/../recomp-ui/assets/common/img") {
+        into "assets/img"
+    }
+    from("${rootDir}/../recomp-ui/assets/consoles/snes/img") {
+        include "pad.tga"
+        into "assets/img"
+    }
+    from("${rootDir}/../recomp/launcher/boxart.tga") {
+        into "assets/img"
+        rename { "boxart.tga" }
+    }
+
+    // These are metadata only; no ROM data or extracted game assets are
+    // packaged. SetupActivity copies them to mods/preloaded/packages/.
+    from("${rootDir}/../mods/preloaded/packages") {
+        into "mods/preloaded/packages"
+    }
+}
+
+android.sourceSets.main.assets.srcDir(runtimeAssetsDir)
+tasks.named("preBuild").configure {
+    dependsOn tasks.named("prepareRuntimeAssets")
+}
