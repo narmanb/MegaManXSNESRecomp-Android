@@ -51,11 +51,43 @@ jobs:
           mkdir -p /tmp/android-toolchain
           tar -C "$ANDROID_HOME/ndk" -czf /tmp/android-toolchain/ndk-26.3.11579264.tar.gz 26.3.11579264
           tar -C "$ANDROID_HOME/build-tools" -czf /tmp/android-toolchain/build-tools.tar.gz "${{ steps.tools.outputs.build_tools }}"
+          split -n 4 -d -a 2 --additional-suffix=.part \
+            /tmp/android-toolchain/ndk-26.3.11579264.tar.gz \
+            /tmp/android-toolchain/ndk-
+          rm /tmp/android-toolchain/ndk-26.3.11579264.tar.gz
+          ls -lh /tmp/android-toolchain
 
-      - name: Upload toolchain
+      - name: Upload NDK part 00
         uses: actions/upload-artifact@v4
         with:
-          name: android-local-link-toolchain
-          path: /tmp/android-toolchain/*.tar.gz
-          if-no-files-found: error
+          name: android-ndk-part-00
+          path: /tmp/android-toolchain/ndk-00.part
+          retention-days: 1
+
+      - name: Upload NDK part 01
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-ndk-part-01
+          path: /tmp/android-toolchain/ndk-01.part
+          retention-days: 1
+
+      - name: Upload NDK part 02
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-ndk-part-02
+          path: /tmp/android-toolchain/ndk-02.part
+          retention-days: 1
+
+      - name: Upload NDK part 03
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-ndk-part-03
+          path: /tmp/android-toolchain/ndk-03.part
+          retention-days: 1
+
+      - name: Upload APK build tools
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build-tools
+          path: /tmp/android-toolchain/build-tools.tar.gz
           retention-days: 1
