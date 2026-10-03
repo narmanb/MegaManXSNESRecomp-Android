@@ -1,0 +1,61 @@
+name: Android toolchain bundle
+
+on:
+  push:
+    branches:
+      - android-port
+    paths:
+      - '.github/workflows/android-toolchain-bundle.yml'
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.1.1'
+
+      - name: Fetch pinned SDL2
+        run: bash android/fetch_sdl.sh
+
+      - name: Prime Android SDK and NDK
+        working-directory: android
+        run: gradle :app:assembleDebug -PsetupHost --stacktrace
+
+      - name: Locate Android tools
+        id: tools
+        shell: bash
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls -la "$ANDROID_HOME/ndk/26.3.11579264"
+          ls -la "$ANDROID_HOME/build-tools"
+          BUILD_TOOLS="$(ls -1 "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          echo "build_tools=$BUILD_TOOLS" >> "$GITHUB_OUTPUT"
+
+      - name: Pack NDK and APK build tools
+        shell: bash
+        run: |
+          mkdir -p /tmp/android-toolchain
+          tar -C "$ANDROID_HOME/ndk" -czf /tmp/android-toolchain/ndk-26.3.11579264.tar.gz 26.3.11579264
+          tar -C "$ANDROID_HOME/build-tools" -czf /tmp/android-toolchain/build-tools.tar.gz "${{ steps.tools.outputs.build_tools }}"
+
+      - name: Upload toolchain
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-local-link-toolchain
+          path: /tmp/android-toolchain/*.tar.gz
+          if-no-files-found: error
+          retention-days: 1
