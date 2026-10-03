@@ -1,0 +1,27 @@
+name: Android native analyzer
+
+on:
+  push:
+    branches:
+      - android-port
+
+jobs:
+  analyzer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Build pinned native analyzer
+        run: python3 snesrecomp/tools/build_native_analyzer.py
+
+      - name: Upload analyzer
+        uses: actions/upload-artifact@v4
+        with:
+          name: snesrecomp-native-analyzer-linux-x64
+          path: snesrecomp/recompiler-rs/target/release/snesrecomp-analyze
+          if-no-files-found: error
+          retention-days: 1
