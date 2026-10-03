@@ -1,0 +1,42 @@
+name: Android setup-host build
+
+on:
+  push:
+    branches:
+      - android-port
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.1.1'
+
+      - name: Fetch pinned SDL2
+        run: bash android/fetch_sdl.sh
+
+      - name: Build ROM-free setup APK
+        working-directory: android
+        run: gradle :app:assembleDebug -PsetupHost --stacktrace
+
+      - name: Upload setup APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmx-android-setup-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 1
