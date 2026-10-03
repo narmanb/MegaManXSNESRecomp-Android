@@ -92,6 +92,14 @@ function(add_mmx_variant TARGET GEN_DIR CFG_DIR)
     snesrecomp_target_fiber_compat(${TARGET})
     snesrecomp_target_desktop_host(${TARGET} TIER2)
     snesrecomp_target_generated_code(${TARGET} ${GEN_DIR})
+    if(ANDROID AND NOT SNESRECOMP_SETUP_HOST)
+        # Keep first hardware-test builds practical in constrained builders.
+        # The generated banks dominate compile time at -O3; -O0/-g0 still
+        # exercises the real ARM64 recomp and can be raised after RP5 testing.
+        file(GLOB mmx_android_generated ${GEN_DIR}/*.c)
+        set_source_files_properties(${mmx_android_generated} PROPERTIES
+            COMPILE_OPTIONS "-w;-O0;-g0")
+    endif()
     if(SNESRECOMP_SETUP_HOST)
         target_sources(${TARGET} PRIVATE src/setup_host.c)
     endif()
