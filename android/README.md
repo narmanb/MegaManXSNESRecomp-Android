@@ -14,9 +14,7 @@ The initial Android path targets:
 - OpenGL ES through recomp-ui
 - the USA Mega Man X Rev 1 build
 
-Netplay, the desktop mod-catalog filesystem layout, shader-preset packaging,
-and polished Android ROM/file-picker UX are intentionally deferred until the
-native runtime boots reliably.
+Netplay and desktop-only shader-preset support are intentionally deferred until the native runtime boots reliably. The APK now packages the launcher assets and built-in mod metadata, and first launch uses Android's system file picker to copy and SHA-256-verify the user's own USA Rev 1 ROM.
 
 ## Required generated game code
 
@@ -51,4 +49,4 @@ gradle assembleDebug
 
 The APK is produced under `android/app/build/outputs/apk/debug/`.
 
-This is currently port scaffolding, not yet a verified playable Android release.
+The Android shell now includes ROM verification, fullscreen SDL startup, launcher assets and the built-in mod catalog. It is still not a verified playable release until the native library is built with regenerated game code and tested on hardware.
