@@ -209,13 +209,16 @@ int MMX_DESKTOP_ENTRY(int argc, char **argv) {
     .game_info = &mmx_game_info,
     .default_config_ini = kMmxDefaultConfig,
     .env_prefix = "MMX", .debug_port = 4377,
-    .native_widescreen = 0, .state_menu_hotkeys = 1,
+    .native_widescreen = 0,
 #ifdef __ANDROID__
-    /* The Android host uses SDL_Renderer/GLES; desktop GLSL presets are not
-     * compiled there. Widescreen remains available through the native MMX
-     * compositor and its Mods entry. */
+    /* Android exposes the title-owned compositor through the launcher's native
+     * Widescreen toggle. Adaptive mode matches the RP5's 16:9 display. */
+    .widescreen_supported = !MMX_VARIANT_JP,
+    .state_menu_hotkeys = 0,
     .display_aspect_supported = 1, .shader_supported = 0,
 #else
+    .widescreen_supported = 0,
+    .state_menu_hotkeys = 1,
     .display_aspect_supported = 1, .shader_supported = 1,
 #endif
     /* Rewind's ring has always been in the runtime and reachable on F8; this
