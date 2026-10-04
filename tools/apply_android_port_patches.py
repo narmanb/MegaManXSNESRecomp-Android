@@ -86,82 +86,47 @@ replace("recomp-ui/src/common/backends/imgui/launcher_imgui.cpp",
 #endif
 ''', "Hide Android deep fullscreen row")
 
+# The deep display branch has a separate Window scale fallback.
+replace("recomp-ui/src/common/backends/imgui/launcher_imgui.cpp",
+'''    if (m->has_window_size) {
+        row_label_right("Window size", th, px(SETTINGS_CTRL_W));
+        if (ImGui::Button(ui_text(launcher_model_window_size_label(m)), ImVec2(px(SETTINGS_CTRL_W), px(30))))
+            launcher_model_cycle_window_size(m);
+    } else {
+        row_window_scale(m, th);
+    }
+''',
+'''    if (m->has_window_size) {
+#ifndef __ANDROID__
+        row_label_right("Window size", th, px(SETTINGS_CTRL_W));
+        if (ImGui::Button(ui_text(launcher_model_window_size_label(m)), ImVec2(px(SETTINGS_CTRL_W), px(30))))
+            launcher_model_cycle_window_size(m);
+#endif
+    } else {
+#ifndef __ANDROID__
+        row_window_scale(m, th);
+#endif
+    }
+''', "Hide Android deep window scale")
+
 p = ROOT / "recomp-ui/src/common/backends/imgui/launcher_imgui.cpp"
 s = p.read_text()
 marker = "// True when this game exposes ANY of the deeper PSX-style DISPLAY controls.\n"
 helper = r'''#ifdef __ANDROID__
-static bool android_mmx_widescreen_feature(LauncherModel* m,
-                                           RecompLauncherCModFeature* out) {
-    const auto* mods = m ? m->mods : nullptr;
-    if (!mods || !mods->feature_count || !mods->feature_get) return false;
-    for (int i = 0; i < mods->feature_count(mods->ctx); ++i) {
-        RecompLauncherCModFeature f{};
-        if (!mods->feature_get(mods->ctx, i, &f)) continue;
-        if (!std::strcmp(f.package_id, "megaman-x.enhancement.widescreen") &&
-            !std::strcmp(f.id, "widescreen")) {
-            if (out) *out = f;
-            return true;
-        }
-    }
-    return false;
-}
-
 static void draw_android_mmx_widescreen_row(LauncherModel* m,
                                              const LauncherTheme& th) {
-    RecompLauncherCModFeature feature{};
-    if (!android_mmx_widescreen_feature(m, &feature)) return;
-    const auto* mods = m->mods;
-    if (!mods->feature_option_get || !mods->feature_choice_get ||
-        !mods->feature_enable || !mods->feature_set_option) return;
-    RecompLauncherCModOption aspect{};
-    bool found = false;
-    for (int i = 0; i < feature.option_count; ++i) {
-        RecompLauncherCModOption opt{};
-        if (mods->feature_option_get(mods->ctx, feature.package_id,
-                                     feature.id, i, &opt) &&
-            !std::strcmp(opt.id, "aspect")) {
-            aspect = opt; found = true; break;
-        }
-    }
-    if (!found) return;
-    char preview[128] = "Off";
-    if (feature.enabled) {
-        std::snprintf(preview, sizeof(preview), "%s",
-                      aspect.value[0] ? aspect.value : "Adaptive");
-        for (int i = 0; i < aspect.choice_count; ++i) {
-            RecompLauncherCModChoice choice{};
-            if (mods->feature_choice_get(mods->ctx, feature.package_id,
-                                         feature.id, aspect.id, i, &choice) &&
-                !std::strcmp(choice.value, aspect.value)) {
-                std::snprintf(preview, sizeof(preview), "%s", choice.label);
-                break;
-            }
-        }
-    }
-    row_label_right("Widescreen", th, px(180));
-    ImGui::SetNextItemWidth(px(180));
-    if (ImGui::BeginCombo("##mmx_widescreen", ui_text(preview))) {
-        if (ImGui::Selectable(ui_text("Off"), !feature.enabled))
-            mods->feature_enable(mods->ctx, feature.package_id, feature.id, 0);
-        for (int i = 0; i < aspect.choice_count; ++i) {
-            RecompLauncherCModChoice choice{};
-            if (!mods->feature_choice_get(mods->ctx, feature.package_id,
-                                          feature.id, aspect.id, i, &choice))
-                continue;
-            bool selected = feature.enabled &&
-                            !std::strcmp(choice.value, aspect.value);
-            if (ImGui::Selectable(ui_text(choice.label), selected)) {
-                if (!feature.enabled)
-                    mods->feature_enable(mods->ctx, feature.package_id,
-                                         feature.id, 1);
-                mods->feature_set_option(mods->ctx, feature.package_id,
-                                         feature.id, aspect.id, choice.value);
-            }
-        }
-        ImGui::EndCombo();
-    }
+    if (!m || !m->widescreen_supported) return;
+    static const SettingsChoice kAndroidWideChoices[] = {
+        {0, "Off"}, {1, "16:9"}
+    };
+    const int current = m->s.widescreen ? 1 : 0;
+    const int picked = settings_combo_row("Widescreen", th,
+                                           "##mmx_widescreen",
+                                           kAndroidWideChoices, 2, current);
+    if (picked >= 0 && picked != current)
+        launcher_model_toggle_widescreen(m);
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal))
-        ImGui::SetTooltip("Expand the actual stage view. 16:9 is recommended on the RP5.");
+        ImGui::SetTooltip("Expand the actual stage view to the RP5's 16:9 screen.");
 }
 #endif
 
