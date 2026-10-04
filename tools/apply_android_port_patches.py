@@ -20,11 +20,20 @@ replace("recomp-ui/src/common/launcher_platform_sdl2.c",
 """,
 """    if (s <= 0.0f) s = 1.0f;
 #ifdef __ANDROID__
-    /* Android reports physical panel density, not desktop UI scale. */
-    s = 1.0f;
+    /* Handheld compromise: readable on a 1080p RP5 without recreating the
+     * oversized desktop-HiDPI layout. */
+    s = 1.25f;
 #endif
     forced = forced_display_scale();
 """, "Android launcher DPI")
+
+replace("recomp-ui/src/consoles/snes/snes_profile.h",
+'''static const char* const kPanelsSettingsSnes[]  = { "video", "audio", "hotkeys", NULL };''',
+'''#ifdef __ANDROID__
+static const char* const kPanelsSettingsSnes[]  = { "video", "audio", NULL };
+#else
+static const char* const kPanelsSettingsSnes[]  = { "video", "audio", "hotkeys", NULL };
+#endif''', "Hide Android hotkeys panel")
 
 replace("snesrecomp/runner/src/desktop/launcher_video.h",
 '    game->aspect_setting_label = "Display aspect";\n',
@@ -241,5 +250,31 @@ loop_new = "    if (!running)\n      break;\n#ifdef __ANDROID__\n    AndroidPoll
 if loop_new not in s:
     if loop not in s: raise SystemExit("gamepad loop anchor missing")
     s = s.replace(loop, loop_new, 1)
+
+p = ROOT / "snesrecomp/runner/src/desktop/host_main.c"
+s = p.read_text()
+seed_old = """  ls->linear_filter = g_config.linear_filtering;
+  ls->aspect_index = SnesDisplayAspect_Clamp(g_config.display_aspect);
+"""
+seed_new = """  ls->linear_filter = g_config.linear_filtering;
+  ls->widescreen    = g_config.widescreen ? 1 : 0;
+  ls->aspect_index = SnesDisplayAspect_Clamp(g_config.display_aspect);
+"""
+if seed_new not in s:
+    if seed_old not in s: raise SystemExit("widescreen seed anchor missing")
+    s = s.replace(seed_old, seed_new, 1)
+commit_old = """  g_config.linear_filtering    = ls->linear_filter != 0;
+  if (game->display_aspect_supported)
+"""
+commit_new = """  g_config.linear_filtering    = ls->linear_filter != 0;
+  if (game->widescreen_supported)
+    g_config.widescreen = ls->widescreen != 0;
+  if (game->display_aspect_supported)
+"""
+if commit_new not in s:
+    if commit_old not in s: raise SystemExit("widescreen commit anchor missing")
+    s = s.replace(commit_old, commit_new, 1)
+p.write_text(s)
+
 p.write_text(s)
 print("Android/RP5 framework patches ready")
