@@ -18,6 +18,13 @@ set(SNESRECOMP_ENABLE_MODS ON CACHE BOOL "Shared mod package runtime" FORCE)
 if(ANDROID)
     set(SNESRECOMP_SDL_BACKEND "SDL2" CACHE STRING "SDL backend" FORCE)
     set(SNESRECOMP_NET_ICE OFF CACHE BOOL "Internet netplay transport" FORCE)
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/apply_android_port_patches.py
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        RESULT_VARIABLE _android_patch_result)
+    if(NOT _android_patch_result EQUAL 0)
+        message(FATAL_ERROR "Failed to apply Android/RP5 framework patches")
+    endif()
 else()
     # Match Gundam Endless Duel's internet-capable lobby build on desktop.
     set(SNESRECOMP_NET_ICE ON CACHE BOOL "Internet netplay transport" FORCE)
@@ -93,12 +100,11 @@ function(add_mmx_variant TARGET GEN_DIR CFG_DIR)
     snesrecomp_target_desktop_host(${TARGET} TIER2)
     snesrecomp_target_generated_code(${TARGET} ${GEN_DIR})
     if(ANDROID AND NOT SNESRECOMP_SETUP_HOST)
-        # Keep first hardware-test builds practical in constrained builders.
-        # The generated banks dominate compile time at -O3; -O0/-g0 still
-        # exercises the real ARM64 recomp and can be raised after RP5 testing.
+        # Test 1/2 used -O0 for bring-up. Real RP5 testing showed severe
+        # stage-entry/reload stalls, so generated game banks now use -O2.
         file(GLOB mmx_android_generated ${GEN_DIR}/*.c)
         set_source_files_properties(${mmx_android_generated} PROPERTIES
-            COMPILE_OPTIONS "-w;-O0;-g0")
+            COMPILE_OPTIONS "-w;-O2;-g0")
     endif()
     if(SNESRECOMP_SETUP_HOST)
         target_sources(${TARGET} PRIVATE src/setup_host.c)
